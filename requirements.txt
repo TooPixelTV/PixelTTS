@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+soundfile
+numpy
+pydub
+
+torch
+torchaudio
+
+chatterbox-tts
