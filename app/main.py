@@ -18,7 +18,6 @@ app = FastAPI(title="Chatterbox Async TTS API")
 # Sémaphore : 1 génération à la fois (GPU safe)
 tts_lock = asyncio.Semaphore(1)
 
-
 def generate_tts_file(req: TTSRequest) -> Path:
     voice_dir = VOICES_DIR / req.voice
     if not voice_dir.exists():
