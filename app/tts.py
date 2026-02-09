@@ -10,7 +10,6 @@ def generate_tts(text, ref_wav, voice_cfg, voice_description, output_path):
     print("Text : \n" + text + "\n")
     print("Using configuration")
     print(voice_cfg)
-    print("---------- END TTS GENERATION ------------")
 
     exaggeration = voice_cfg.get("exaggeration", 0.5)
     cfg_weight   = voice_cfg.get("cfg_weight", 0.5)
@@ -26,3 +25,4 @@ def generate_tts(text, ref_wav, voice_cfg, voice_description, output_path):
     )
 
     ta.save(output_path, audio, model.sr)
+    print("---------- END TTS GENERATION ------------")

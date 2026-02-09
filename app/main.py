@@ -8,15 +8,34 @@ import time
 import soundfile as sf
 from enum import Enum
 from pydub import AudioSegment
+import os
+import signal
 
 from app.config import VOICES_DIR, OUTPUT_DIR
 from app.models import TTSRequest
 from app.tts import generate_tts
 
+STOP_FILE = "stop.flag"
+
 app = FastAPI(title="Chatterbox Async TTS API")
 
 # Sémaphore : 1 génération à la fois (GPU safe)
 tts_lock = asyncio.Semaphore(1)
+
+@app.on_event("startup")
+async def on_startup():
+    # Lance la surveillance du stop.flag
+    asyncio.create_task(watch_stop_flag())
+
+async def watch_stop_flag():
+    while True:
+        if os.path.exists(STOP_FILE):
+            print("Stop flag detected, shutting down server...", flush=True)
+            os.remove(STOP_FILE)
+
+            os.kill(os.getpid(), signal.SIGINT)
+
+        await asyncio.sleep(0.5)
 
 def generate_tts_file(req: TTSRequest) -> Path:
     voice_dir = VOICES_DIR / req.voice
@@ -76,19 +95,21 @@ async def tts_endpoint(
     mode: TTSMode = Query(TTSMode.file),
     format: TTSFormat = Query(TTSFormat.wav)
 ):
-    output_wav = await run_tts(req)  # génère toujours un WAV
+    output_wav = await run_tts(req)
 
     final_output = output_wav
 
     if format == TTSFormat.mp3:
+        print("Converting file to mp3...")
         mp3_path = output_wav.with_suffix(".mp3")
         audio = AudioSegment.from_wav(str(output_wav))
         audio.export(str(mp3_path), format="mp3")
         final_output = mp3_path
         # Optionnel : supprimer le WAV original
         # output_wav.unlink()
+        print("File converted to mp3 !")
 
-    duration = get_wav_duration(output_wav)  # toujours en WAV pour précision
+    duration = get_wav_duration(output_wav)
 
     if mode == TTSMode.path:
         return {
