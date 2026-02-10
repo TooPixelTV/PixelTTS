@@ -1,8 +1,12 @@
+import emoji
 import torchaudio as ta
 from chatterbox.tts import ChatterboxTTS
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
 model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
+
+def remove_emojis(text):
+    return emoji.replace_emoji(text, replace='')
 
 def generate_tts(text, ref_wav, voice_cfg, voice_description, output_path):
     print("--------- BEGIN TTS GENERATION -----------")
@@ -16,7 +20,7 @@ def generate_tts(text, ref_wav, voice_cfg, voice_description, output_path):
     temperature  = voice_cfg.get("temperature", 0.8)
 
     audio = model.generate(
-        text,
+        remove_emojis(text),
         audio_prompt_path=ref_wav,
         language_id="fr",
         exaggeration=exaggeration,

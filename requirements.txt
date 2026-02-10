@@ -4,6 +4,7 @@ pydantic
 soundfile
 numpy
 pydub
+emoji
 
 torch
 torchaudio
