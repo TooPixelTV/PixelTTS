@@ -13,7 +13,7 @@ import signal
 
 from app.config import VOICES_DIR, OUTPUT_DIR
 from app.models import TTSRequest
-from app.tts import generate_tts
+from app.tts import generate_tts, generate_tts_chunked
 
 STOP_FILE = "stop.flag"
 
@@ -57,7 +57,7 @@ async def run_tts(req: TTSRequest) -> Path:
 
     async with tts_lock:
         await asyncio.to_thread(
-            generate_tts,
+            generate_tts_chunked,
             req.text,
             str(voice_dir / "reference.wav"),
             voice_config,
