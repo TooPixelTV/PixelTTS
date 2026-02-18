@@ -30,13 +30,13 @@ python -m pip install --upgrade pip
 REM Installer les dépendances
 IF EXIST "requirements.txt" (
     echo Installation des packages depuis requirements.txt...
-    pip install -r requirements.txt --use-deprecated=legacy-resolver
+    pip install -r requirements.txt
 ) ELSE (
     echo Fichier requirements.txt introuvable.
 )
 
 REM Installer PyTorch (CUDA 11.8)
 echo Installation de PyTorch...
-pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 pause
