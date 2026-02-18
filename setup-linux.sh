@@ -32,13 +32,13 @@ python -m pip install --upgrade pip
 # Installer les dépendances
 if [ -f "requirements.txt" ]; then
     echo "Installation des packages depuis requirements.txt..."
-    pip install -r requirements.txt
+    pip install -r requirements.txt --use-deprecated=legacy-resolver
 else
     echo "Fichier requirements.txt introuvable."
 fi
 
 # Installer PyTorch CUDA 11.8
 echo "Installation de PyTorch (CUDA 11.8)..."
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
 
 echo "Setup terminé."
