@@ -1,25 +1,26 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi import Query
-from pathlib import Path
-import json
 import asyncio
-import time
-import soundfile as sf
-from enum import Enum
-from pydub import AudioSegment
+import json
 import os
 import signal
+import time
+from pathlib import Path
+from enum import Enum
 
-from app.config import VOICES_DIR, OUTPUT_DIR
+import soundfile as sf
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydub import AudioSegment
+
+from app.config import OUTPUT_DIR, VOICES_DIR
 from app.models import TTSRequest
-from app.tts import generate_tts, generate_tts_chunked
+from app.tts import generate_tts_chunked
 
+"""API FastAPI pour la synthèse vocale (XTTS v2, voix personnalisées)."""
 STOP_FILE = "stop.flag"
 
-app = FastAPI(title="Chatterbox Async TTS API")
+app = FastAPI(title="Pixel TTS API (XTTS v2)")
 
-# Sémaphore : 1 génération à la fois (GPU safe)
+# Une seule génération à la fois (évite saturation GPU / mémoire).
 tts_lock = asyncio.Semaphore(1)
 
 @app.on_event("startup")
@@ -37,7 +38,8 @@ async def watch_stop_flag():
 
         await asyncio.sleep(0.5)
 
-def generate_tts_file(req: TTSRequest) -> Path:
+def generate_tts_file(req: TTSRequest):
+    """Charge la config de la voix et prépare le chemin de sortie. Lève 404 si voix inconnue."""
     voice_dir = VOICES_DIR / req.voice
     if not voice_dir.exists():
         raise HTTPException(404, "Voice not found")
@@ -100,14 +102,9 @@ async def tts_endpoint(
     final_output = output_wav
 
     if format == TTSFormat.mp3:
-        print("Converting file to mp3...")
         mp3_path = output_wav.with_suffix(".mp3")
-        audio = AudioSegment.from_wav(str(output_wav))
-        audio.export(str(mp3_path), format="mp3")
+        AudioSegment.from_wav(str(output_wav)).export(str(mp3_path), format="mp3")
         final_output = mp3_path
-        # Optionnel : supprimer le WAV original
-        # output_wav.unlink()
-        print("File converted to mp3 !")
 
     duration = get_wav_duration(output_wav)
 

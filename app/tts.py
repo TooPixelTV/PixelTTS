@@ -1,115 +1,47 @@
+"""
+Module TTS : chargement du modèle XTTS v2 et génération audio.
+Une seule génération à la fois (géré par le sémaphore dans main).
+"""
 import emoji
+
 import torch
-import re
-import torchaudio as ta
-from chatterbox.tts import ChatterboxTTS
-from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+from TTS.api import TTS
 
-model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
+# Modèle multilingue avec clonage de voix (référence WAV). Chargé au démarrage.
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+model = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(DEVICE)
 
-def remove_emojis(text):
-    return emoji.replace_emoji(text, replace='')
 
-def split_text_hybrid(text, max_chars=200):
-    import re
-    parts = re.split(r'(?<=[\.\!\?\;\:])\s+', text)
-    chunks = []
-    current = ""
+def remove_emojis(text: str) -> str:
+    """Retire les emojis du texte pour éviter les artefacts XTTS."""
+    return emoji.replace_emoji(text, replace="")
 
-    for part in parts:
-        if len(part) > max_chars:
-            # fallback mot ou slice
-            words = re.findall(r'\S+|\s+', part)  # capture tout, même si pas d'espace
-            for w in words:
-                if len(current) + len(w) <= max_chars:
-                    current += w
-                else:
-                    if current:
-                        chunks.append(current)
-                    # si w trop long, couper directement
-                    while len(w) > max_chars:
-                        chunks.append(w[:max_chars])
-                        w = w[max_chars:]
-                    current = w
-            continue
 
-        if len(current) + len(part) <= max_chars:
-            current += part
-        else:
-            if current:
-                chunks.append(current)
-            current = part
+def generate_tts_chunked(
+    text: str,
+    ref_wav: str,
+    voice_cfg: dict,
+    voice_description: str,
+    output_path: str,
+) -> None:
+    """
+    Génère un fichier audio avec XTTS v2 à partir du texte et d'une voix de référence.
+    XTTS découpe le texte en phrases en interne ; pas de chunking manuel.
+    """
+    print("--------- BEGIN TTS (XTTS v2) -----------")
+    print("Voice:", voice_description)
 
-    if current:
-        chunks.append(current)
+    text = remove_emojis(text).strip()
+    if not text:
+        raise ValueError("Text is empty after cleanup")
 
-    return chunks
+    language = voice_cfg.get("language", "fr")
 
-def generate_tts(text, ref_wav, voice_cfg, voice_description, output_path):
-    print("--------- BEGIN TTS GENERATION -----------")
-    print("Voice : " + voice_description)
-    print("Text : \n" + text + "\n")
-    print("Using configuration")
-    print(voice_cfg)
-
-    exaggeration = voice_cfg.get("exaggeration", 0.5)
-    cfg_weight   = voice_cfg.get("cfg_weight", 0.5)
-    temperature  = voice_cfg.get("temperature", 0.8)
-
-    audio = model.generate(
-        remove_emojis(text),
-        audio_prompt_path=ref_wav,
-        language_id="fr",
-        exaggeration=exaggeration,
-        cfg_weight=cfg_weight,
-        temperature=temperature
+    model.tts_to_file(
+        text=text,
+        file_path=output_path,
+        speaker_wav=ref_wav,
+        language=language,
     )
 
-    ta.save(output_path, audio, model.sr)
-    print("---------- END TTS GENERATION ------------")
-
-def generate_tts_chunked(text, ref_wav, voice_cfg, voice_description, output_path):
-    print("--------- BEGIN TTS GENERATION -----------")
-    print("Voice :", voice_description)
-
-    text = remove_emojis(text)
-    chunks = split_text_hybrid(text)
-
-    print(f"{len(chunks)} chunks générés")
-
-    exaggeration = voice_cfg.get("exaggeration", 0.5)
-    cfg_weight   = voice_cfg.get("cfg_weight", 0.5)
-    temperature  = voice_cfg.get("temperature", 0.8)
-
-    audios = []
-
-    for i, chunk in enumerate(chunks):
-        print(f"→ Chunk {i+1}/{len(chunks)}")
-        print(chunk)
-
-        audio = model.generate(
-            chunk,
-            audio_prompt_path=ref_wav,
-            language_id="fr",
-            exaggeration=exaggeration,
-            cfg_weight=cfg_weight,
-            temperature=temperature
-        )
-
-        audios.append(audio)
-
-    # petite pause entre chunks (10 ms)
-    silence = torch.zeros(
-        (audios[0].shape[0], int(model.sr * 0.01)),
-        device=audios[0].device
-    )
-
-    final_audio = []
-    for a in audios:
-        final_audio.append(a)
-        final_audio.append(silence)
-
-    final_audio = torch.cat(final_audio, dim=1)
-
-    ta.save(output_path, final_audio, model.sr)
-    print("---------- END TTS GENERATION ------------")
+    print("---------- END TTS ------------")

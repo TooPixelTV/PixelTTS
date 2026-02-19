@@ -1,117 +1,126 @@
-# Chatterbox TTS API
+# Pixel TTS
 
-Projet : API TTS asynchrone pour générer des voix de personnages avec styles/emotions
-Basé sur Chatterbox (Open-source)
+API de synthèse vocale (TTS) avec **voix personnalisées** (clonage à partir d’un fichier audio). Basée sur **XTTS v2** (Coqui) : rapide, multilingue, un seul modèle pour toutes les voix.
+
+## Prérequis
+
+- **Python 3.12** (seule version testée)
+- **GPU NVIDIA** recommandé (CUDA) pour des temps de réponse corrects
+- Optionnel : PyTorch avec CUDA (`cu118` ou `cu121` selon ta carte)
 
 ## Structure du projet
 
-chatterbox-api/
-├─ app/
-│ ├─ main.py : API FastAPI (async interne)
-│ ├─ tts.py : Wrapper Chatterbox + styles
-│ ├─ audio_fx.py : Post-processing audio
-│ ├─ models.py : Schémas Pydantic pour l'API
-│ └─ config.py : Constantes et chemins
-├─ voices/ : dossiers par voix
-│ ├─ pirate/
-│ │ ├─ reference.wav
-│ │ └─ config.json (styles)
-│ ├─ mage/
-│ │ ├─ reference.wav
-│ │ └─ config.json
-├─ output/ : fichiers WAV générés
-├─ requirements.txt
-├─ Dockerfile
-├─ docker-compose.yml
-└─ README.txt : ce fichier
+```
+PixelTTS/
+├── app/
+│   ├── main.py      # API FastAPI (routes /tts, /voices)
+│   ├── tts.py       # Chargement XTTS v2 + génération
+│   ├── config.py    # Chemins (voices/, output/)
+│   └── models.py    # Schéma TTSRequest
+├── voices/          # Une voix = un dossier
+│   ├── narrateur/
+│   │   ├── reference.wav   # Extrait vocal de référence (~6 s idéal)
+│   │   └── config.json     # name, description, config.language
+│   └── francis/
+│       ├── reference.wav
+│       └── config.json
+├── output/          # Fichiers WAV générés (nommés par timestamp_voix.wav)
+├── requirements.txt
+├── setup.bat        # Création venv + installation des deps
+├── start.bat        # Démarrage du serveur (port 8000)
+├── stop.bat         # Création de stop.flag pour arrêt propre
+└── test.bat         # Exemple d’appel curl vers /tts
+```
 
 ## Installation
 
-## Option 1 : Python + venv
+1. **Cloner ou dézipper** le projet, puis à la racine :
 
-1. Dézippez le projet
-   unzip chatterbox-api.zip
-   cd chatterbox-api
-
-2. Créez un environnement virtuel
-   python3 -m venv venv
-   source venv/bin/activate # Windows: venv\Scripts\activate
-
-3. Installez les dépendances
-   pip install --upgrade pip
+2. **Environnement virtuel et dépendances** (Windows) :
+   ```bat
+   setup.bat
+   ```
+   Ou à la main :
+   ```bat
+   python -m venv venv
+   venv\Scripts\activate
    pip install -r requirements.txt
-   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+   ```
+   Pour une **GPU NVIDIA**, installe PyTorch avec CUDA après :
+   ```bat
+   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+   ```
 
-4. Installez Chatterbox
-   git clone https://github.com/resemble-ai/chatterbox.git
-   pip install chatterbox-tts
+3. **Premier lancement** : au premier appel TTS, le modèle XTTS v2 est téléchargé automatiquement (plusieurs centaines de Mo).
 
-5. Lancez le serveur
-   uvicorn app.main:app --host 0.0.0.0 --port 8000
+## Démarrer le serveur
 
-## Option 2 : Docker (recommandé)
+```bat
+start.bat
+```
 
-1. Construisez l'image
-   docker compose build
+Le serveur écoute sur **http://0.0.0.0:8000**. Pour l’arrêter proprement : lancer `stop.bat` ou laisser le processus écouter le fichier `stop.flag`.
 
-2. Lancez le container
-   docker compose up
+## Utilisation de l’API
 
-Le serveur sera accessible sur http://localhost:8000
+### Lister les voix
 
-## Utilisation de l'API
+```bash
+curl http://localhost:8000/voices
+```
 
-1. Lister les voix disponibles
-   curl http://localhost:8000/voices
+Réponse : liste des voix avec `name`, `description`, `config` (dont `language`).
 
-2. Générer un fichier WAV
-   curl -X POST http://localhost:8000/tts \
-    -H "Content-Type: application/json" \
-    -d '{
-   "voice": "pirate",
-   "style": "angry",
-   "text": "À L’ABORDAGE !!!"
-   }' --output pirate.wav
+### Générer un WAV
 
-- Le fichier WAV est généré dans le dossier output/
-- Les styles et émotions sont définis dans config.json de chaque voix
+```bash
+curl -X POST http://localhost:8000/tts \
+  -H "Content-Type: application/json" \
+  -d "{\"voice\": \"narrateur\", \"text\": \"Votre texte ici.\"}" \
+  --output sortie.wav
+```
 
-## Ajout d'une nouvelle voix
+**Paramètres de requête (query)** :
 
-1. Créez un dossier sous voices/nom_voix/
-2. Ajoutez :
-   - reference.wav : fichier audio de référence
-   - config.json : définition des styles et style par défaut
+| Paramètre | Valeurs      | Défaut | Description                          |
+|----------|--------------|--------|--------------------------------------|
+| `mode`   | `file`, `path` | `file` | `file` = retourne le fichier audio ; `path` = retourne JSON avec chemin et durée |
+| `format` | `wav`, `mp3` | `wav`  | Format de sortie (WAV ou MP3)        |
 
-Exemple de style dans config.json :
+Exemple avec MP3 et mode path :
 
-{
-"name": "pirate",
-"description": "Vieux pirate bourru",
-"styles": {
-"normal": {"gain_db": 2, "pitch": -1},
-"angry": {"gain_db": 6, "pitch": -3, "distortion": 0.4}
-},
-"default_style": "normal"
-}
+```bash
+curl -X POST "http://localhost:8000/tts?format=mp3&mode=path" \
+  -H "Content-Type: application/json" \
+  -d "{\"voice\": \"francis\", \"text\": \"Bonjour.\"}"
+```
 
-## Intégration avec Twitch / Bot
+## Ajouter une nouvelle voix
 
-- Envoyez un POST vers /tts avec "voice", "style" et "text"
-- Récupérez le WAV renvoyé directement
-- Jouez-le via OBS, VLC ou soundboard
-- Aucun polling nécessaire : le serveur renvoie le WAV quand prêt
-- Le sémaphore interne gère 1 génération à la fois pour éviter les blocages GPU
+1. Créer un dossier sous `voices/` (ex. `voices/ma_voix/`).
+2. Y mettre :
+   - **reference.wav** : extrait audio de la voix cible (idéalement ~6 s, propre, une seule personne).
+   - **config.json** :
+     ```json
+     {
+       "name": "ma_voix",
+       "description": "Courte description",
+       "config": {
+         "language": "fr"
+       }
+     }
+     ```
+3. Redémarrer le serveur n’est pas nécessaire : les voix sont lues à chaque requête depuis le disque.
+
+Langues supportées par XTTS v2 (ex. dans `config.language`) : `fr`, `en`, `es`, `de`, `it`, `pt`, `pl`, `tr`, `ru`, `nl`, `cs`, `ar`, `zh-cn`, `ja`, `hu`, `ko`, `hi`.
 
 ## Bonnes pratiques
 
-- Nettoyer régulièrement le dossier output/ pour éviter d'accumuler les WAV
-- Précharger le serveur au lancement pour réduire la latence
-- Ajouter de nouveaux styles directement dans config.json pour multiplier les émotions sans recloner la voix
+- **reference.wav** : 16–24 kHz, mono ou stéréo, sans bruit excessif ; ~6 s suffisent pour un bon clonage.
+- Nettoyer régulièrement le dossier **output/** pour éviter d’accumuler des fichiers.
+- Une seule requête TTS à la fois (sémaphore côté serveur) pour rester stable sur GPU.
 
-## Avantages Docker
+## Licence / crédits
 
-- Reproductibilité (même setup sur n'importe quelle machine)
-- Isolation des dépendances et du GPU
-- Redémarrage rapide
-- Facile à scaler si plusieurs bots / streamers
+- **XTTS v2** : [Coqui TTS](https://github.com/coqui-ai/TTS) (Mozilla Public License 2.0).
+- **Pixel TTS** : structure et API du projet.

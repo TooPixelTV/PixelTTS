@@ -1,3 +1,4 @@
+"""Chemins du projet : voix (reference.wav + config.json) et sortie audio."""
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent

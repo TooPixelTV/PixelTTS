@@ -8,5 +8,6 @@ emoji
 
 torch
 torchaudio
+transformers>=4.33,<=4.46.2
 
-chatterbox-tts
+coqui-tts
