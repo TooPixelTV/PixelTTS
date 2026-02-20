@@ -4,6 +4,7 @@ import os
 import signal
 import time
 from pathlib import Path
+from typing import Union
 from enum import Enum
 
 import soundfile as sf
@@ -97,6 +98,7 @@ async def tts_endpoint(
     mode: TTSMode = Query(TTSMode.file),
     format: TTSFormat = Query(TTSFormat.wav)
 ):
+    clean_output_folder(OUTPUT_DIR)
     output_wav = await run_tts(req)
 
     final_output = output_wav
@@ -117,3 +119,31 @@ async def tts_endpoint(
         }
 
     return FileResponse(final_output, media_type=f"audio/{format.value}")
+
+def clean_output_folder(
+    folder: Union[str, Path],
+    max_files: int = 50
+):
+    folder = Path(folder)
+
+    if not folder.exists():
+        return
+
+    # Récupère uniquement les fichiers (pas les dossiers)
+    files = [f for f in folder.iterdir() if f.is_file()]
+
+    # Si on est en dessous de la limite → rien à faire
+    if len(files) <= max_files:
+        return
+
+    # Trie par date de modification (plus vieux en premier)
+    files.sort(key=lambda f: f.stat().st_mtime)
+
+    # Nombre de fichiers à supprimer
+    files_to_delete = files[: len(files) - max_files]
+
+    for file in files_to_delete:
+        try:
+            file.unlink()
+        except Exception as e:
+            print(f"Erreur suppression {file}: {e}")
